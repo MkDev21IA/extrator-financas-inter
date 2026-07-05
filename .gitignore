@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Arquivos locais e de dados financeiros
+.env
+*.csv
+*.ofx
+*.pdf
+downloads/
