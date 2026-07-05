@@ -27,8 +27,13 @@ def treinar_motor():
         print(f"\nData: {row['data_transacao']} | Valor: R$ {row['valor']:.2f}")
         print(f"Desc: {row['descricao']}")
         
-        acao = input("Escolha [R/M/I/P]: ").strip().upper()
+        acao = input("Escolha [R/M/I/P] ou [S] para Sair: ").strip().upper()
         
+        # 0. SAIR (Fecha o banco de forma limpa e encerra o script)
+        if acao == 'S':
+            print("[*] Saindo e salvando alterações...")
+            break
+
         # 1. PULAR (Não faz nada, vai perguntar de novo na próxima)
         if acao == 'P' or acao == '':
             continue
