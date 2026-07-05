@@ -1,7 +1,7 @@
 import os
 from playwright.sync_api import sync_playwright
 
-def rodar_crawler():
+def rodar_crawler(periodo_escolhido):
     os.makedirs("./downloads", exist_ok=True)
     with sync_playwright() as p:
         print("[*] Iniciando o modo Widget (Apenas QR Code)...")
@@ -47,11 +47,11 @@ def rodar_crawler():
         page.click("text='Extrato'")
 
         # 2. Abrindo o filtro de período
-        print("[*] Configurando filtro para os últimos 7 dias...")
+        print(f"[*] Configurando filtro para: {periodo_escolhido}...")
         page.get_by_test_id("filterChipsDates").click()
 
         # 3. Selecionando os 7 dias na mini-guia lateral
-        page.click("text='7 dias'") 
+        page.click(f"text='{periodo_escolhido}'") 
 
         # 4. Aplicando o filtro
         page.click("text='Filtrar'")
@@ -75,7 +75,8 @@ def rodar_crawler():
         download = download_info.value
 
         # Define o caminho onde o arquivo bruto será salvo localmente
-        caminho_salvar = "./downloads/extrato_ultimos_7dias.csv"
+        nome_arquivo = periodo_escolhido.replace(' ', '')
+        caminho_salvar = f"./downloads/extrato_ultimos_{nome_arquivo}.csv"
         download.save_as(caminho_salvar)
 
         print(f"[+] Sucesso absoluto! Extrato bruto salvo em: {caminho_salvar}")
@@ -85,4 +86,10 @@ def rodar_crawler():
         browser.close()
 
 if __name__ == "__main__":
-    rodar_crawler()
+    print("\n--- Opções de Filtro do Inter ---")
+    print("Opções válidas: '7 dias', '15 dias', '30 dias', '90 dias'")
+
+    # Define qual período baixar antes de abrir o navegador
+    escolha = input("Digite o período exato que deseja extrair: ")
+
+    rodar_crawler(escolha)
