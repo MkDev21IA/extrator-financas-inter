@@ -37,16 +37,14 @@ def setup_database_com_regras(db_path="meu_dinheiro.db"):
     regras_iniciais = [
         # SAÍDAS (valor negativo)
         ('IFOOD', 'Alimentação', 'SAIDA'),
-        ('UBER', 'Transporte', 'SAIDA'),
-        ('99APP', 'Transporte', 'SAIDA'),
-        ('AMAZON', 'Assinaturas/Compras', 'SAIDA'),
-        ('PAG*MERCADOPAGO', 'Serviços', 'SAIDA'),
+        ('UBER', 'Transporte Aplicativo', 'SAIDA'),
+        ('99APP', 'Transporte Aplicativo', 'SAIDA'),
         ('FATURA','Transferência Interna', 'SAIDA'),
         # ENTRADAS (valor positivo)
-        ('RESGATE','Resgate de Investimento','ENTRADA'),
-        ('PROV', 'Rendimentos B3', 'ENTRADA'),
+        ('RESGATE','Resgate de Investimentos','ENTRADA'),
+        ('PROV', 'Rendimentos', 'ENTRADA'),
         ('RENDIMENTO', 'Rendimentos', 'ENTRADA'),
-        ('CASHBACK', 'Estorno/Cashback', 'ENTRADA')
+        ('CASHBACK', 'Chackbacks', 'ENTRADA')
     ]
     
     cursor.executemany("""
@@ -76,7 +74,7 @@ def processar_todos_csvs(diretorio="./downloads"):
             df = df.rename(columns={'Data': 'data_transacao', 'Lançamento': 'descricao', 'Valor': 'valor'})
             df['saldo_conta'] = np.nan
             df['tipo_conta'] = 'CARTAO'
-            df['valor'] = df['valor'].astype(str).str.replace('R$ ', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float) * -1
+            df['valor'] = df['valor'].astype(str).str.replace('R$', '', regex=False).str.replace('\xa0', '', regex=False).str.replace(' ', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float) * -1
             df = df[['data_transacao', 'descricao', 'valor', 'saldo_conta', 'tipo_conta']]
         else:
             continue
