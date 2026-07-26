@@ -51,42 +51,34 @@ def parcelar_transacao_manual(id_hash_original, num_parcelas):
     print("[+] Parcelamento aplicado com sucesso no banco de dados!")
 
 if __name__ == "__main__":
-    conn = sqlite3.connect("meu_dinheiro.db")
-    cursor = conn.cursor()
-    
     print("===================================================")
     print("         GERENCIADOR DE PARCELAMENTOS")
     print("===================================================\n")
+    print("Dica: Obtenha o id_hash diretamente pelo Metabase.\n")
     
-    # Lista as últimas 15 transações para facilitar a visualização do ID Hash
-    cursor.execute("""
-        SELECT id_hash, data_transacao, descricao, valor 
-        FROM transacoes 
-        ORDER BY data_transacao DESC 
-        LIMIT 15
-    """)
-    transacoes = cursor.fetchall()
-    conn.close()
-    
-    if not transacoes:
-        print("[!] Nenhuma transação encontrada no banco de dados.")
-    else:
-        print("Últimas transações registradas:")
-        print("-" * 65)
-        for t in transacoes:
-            h, data, desc, val = t
-            print(f"Data: {data} | Valor: R$ {val:.2f} | Desc: {desc}")
-            print(f"ID (hash): {h}")
-            print("-" * 65)
+    while True:
+        escolha_hash = input("Cole o ID_HASH da transação (ou 'S' para sair): ").strip()
         
+        if escolha_hash.upper() == 'S':
+            print("\n[*] Encerrando o gerenciador de parcelamentos...")
+            break
+        
+        if not escolha_hash:
+            print("[!] O ID_HASH não pode estar vazio. Tente novamente.\n")
+            continue
+            
         try:
-            escolha_hash = input("\nCole o ID_HASH completo da transação que deseja parcelar (ou 'S' para sair): ").strip()
-            if escolha_hash.upper() == 'S':
-                exit()
-            
             num = int(input("Informe o número total de parcelas (ex: 5): ").strip())
-            
+            if num <= 1:
+                print("[!] O número de parcelas deve ser maior que 1.\n")
+                continue
+                
             parcelar_transacao_manual(escolha_hash, num)
+            print("-" * 50)
             
+        except ValueError:
+            print("[X] Entrada inválida. Digite um número inteiro para as parcelas.\n")
         except Exception as e:
-            print(f"\n[X] Erro ao processar o parcelamento: {e}")
+            print(f"\n[X] Erro ao processar o parcelamento: {e}\n")
+        
+        print() # Espaço para a próxima interação do loop
