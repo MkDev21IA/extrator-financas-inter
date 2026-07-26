@@ -3,6 +3,7 @@ import hashlib
 import sqlite3
 import os
 import glob
+import numpy as np
 
 def setup_database_com_regras(db_path="meu_dinheiro.db"):
     print("[*] Verificando estrutura do banco e motor de regras...")
@@ -17,7 +18,8 @@ def setup_database_com_regras(db_path="meu_dinheiro.db"):
         descricao TEXT,
         valor NUMERIC,
         saldo_conta NUMERIC,
-        categoria TEXT
+        categoria TEXT,
+        tipo_conta TEXT
     )
     """)
     
@@ -39,6 +41,7 @@ def setup_database_com_regras(db_path="meu_dinheiro.db"):
         ('99APP', 'Transporte', 'SAIDA'),
         ('AMAZON', 'Assinaturas/Compras', 'SAIDA'),
         ('PAG*MERCADOPAGO', 'Serviços', 'SAIDA'),
+        ('FATURA','Transferência Interna', 'SAIDA'),
         # ENTRADAS (valor positivo)
         ('RESGATE','Resgate de Investimento','ENTRADA'),
         ('PROV', 'Rendimentos B3', 'ENTRADA'),
@@ -54,41 +57,36 @@ def setup_database_com_regras(db_path="meu_dinheiro.db"):
     conn.commit()
     conn.close()
 
-def processar_csv(caminho_arquivo):
-    print(f"[*] Iniciando extração do arquivo: {caminho_arquivo}")
-    
-    # 1. Extração do Saldo Atual
-    with open(caminho_arquivo, 'r', encoding='utf-8') as f:
-        linhas = f.readlines()
-        linha_saldo = linhas[3]
-        
-        # Limpando a string para extrair apenas o número e convertendo para Float
-        saldo_str = linha_saldo.split(';')[1].replace('"', '').strip()
-        saldo_atual = float(saldo_str.replace('.', '').replace(',', '.'))
-        
-        print(f"[*] Metadata capturado -> Saldo Atual da Conta: R$ {saldo_atual:.2f}")
+def processar_todos_csvs(diretorio="./downloads"):
+    arquivos = glob.glob(os.path.join(diretorio, "*.csv"))
+    if not arquivos: return None
+    lista_df = []
 
-    # 2. Extração e tipagem das transações
-    df = pd.read_csv(
-        caminho_arquivo,
-        sep=';',
-        skiprows=6, 
-        header=None,
-        names=['data_transacao', 'descricao', 'valor', 'saldo_conta'],
-        decimal=',',
-        thousands='.'
-    )
+    for arq in arquivos:
+        with open(arq, 'r', encoding='utf-8', errors='ignore') as f:
+            primeira_linha = f.readline().strip()
 
-    # 3. Transformação de Data (De DD/MM/YYYY para YYYY-MM-DD)
-    df['data_transacao'] = pd.to_datetime(df['data_transacao'], format='%d/%m/%Y').dt.strftime('%Y-%m-%d')
+        if "Extrato" in primeira_linha or "Conta" in primeira_linha:
+            df = pd.read_csv(arq, sep=';', skiprows=6, header=None, names=['data_transacao', 'descricao', 'valor', 'saldo_conta'], encoding='utf-8')
+            df['tipo_conta'] = 'CONTA'
+            df['valor'] = df['valor'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float)
+            
+        elif '"Data"' in primeira_linha or 'Data' in primeira_linha:
+            df = pd.read_csv(arq, sep=',', encoding='utf-8')
+            df = df.rename(columns={'Data': 'data_transacao', 'Lançamento': 'descricao', 'Valor': 'valor'})
+            df['saldo_conta'] = np.nan
+            df['tipo_conta'] = 'CARTAO'
+            df['valor'] = df['valor'].astype(str).str.replace('R$ ', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float) * -1
+            df = df[['data_transacao', 'descricao', 'valor', 'saldo_conta', 'tipo_conta']]
+        else:
+            continue
 
-    # 4. Geração do ID Único
-    def gerar_hash(row):
-        string_base = f"{row['data_transacao']}{row['descricao']}{row['valor']}"
-        return hashlib.md5(string_base.encode('utf-8')).hexdigest()
+        df['data_transacao'] = pd.to_datetime(df['data_transacao'], format='%d/%m/%Y', errors='coerce').dt.strftime('%Y-%m-%d')
+        df = df.dropna(subset=['data_transacao', 'valor'])
+        df['id_hash'] = df.apply(lambda row: hashlib.md5(f"{row['data_transacao']}{row['descricao']}{row['valor']}".encode('utf-8')).hexdigest(), axis=1)
+        lista_df.append(df)
 
-    df['id_hash'] = df.apply(gerar_hash, axis=1)
-    return df, saldo_atual
+    return pd.concat(lista_df, ignore_index=True) if lista_df else None
 
 def aplicar_regras_categorizacao(df, db_path="meu_dinheiro.db"):
     print("[*] Aplicando motor de categorização...")
@@ -131,7 +129,8 @@ def carregar_dados_sqlite(df, db_path="meu_dinheiro.db"):
         descricao TEXT,
         valor NUMERIC,
         saldo_conta NUMERIC,
-        categoria TEXT
+        categoria TEXT,
+        tipo_conta TEXT
     )
     """)
     
@@ -141,8 +140,8 @@ def carregar_dados_sqlite(df, db_path="meu_dinheiro.db"):
     
     # 3. O Upsert: Inserir na tabela oficial apenas os hashes inéditos
     query_insert = """
-    INSERT OR IGNORE INTO transacoes (id_hash, data_transacao, descricao, valor, saldo_conta, categoria)
-    SELECT id_hash, data_transacao, descricao, valor, saldo_conta, categoria
+    INSERT OR IGNORE INTO transacoes (id_hash, data_transacao, descricao, valor, saldo_conta, categoria, tipo_conta)
+    SELECT id_hash, data_transacao, descricao, valor, saldo_conta, categoria, tipo_conta
     FROM staging_transacoes;
     """
     
@@ -155,35 +154,21 @@ def carregar_dados_sqlite(df, db_path="meu_dinheiro.db"):
     
     print(f"[+] Carga concluída com sucesso! {linhas_inseridas} transações inéditas adicionadas.")
 
-def encontrar_csv_mais_recente(diretorio="./downloads"):
-    """Varre a pasta downloads e retorna o caminho do arquivo 'extrato_*.csv' mais recente."""
-    # Busca por qualquer CSV que comece com 'extrato_' na pasta indicada
-    padrao = os.path.join(diretorio, "extrato_*.csv")
-    arquivos = glob.glob(padrao)
-    
-    if not arquivos:
-        return None
-        
-    # max() usando a data de modificação (getmtime) como chave de ordenação
-    arquivo_mais_recente = max(arquivos, key=os.path.getmtime)
-    return arquivo_mais_recente
-
 if __name__ == "__main__":
     
     # Prepara a infraestrutura (Tabelas e Regras)
     setup_database_com_regras()
 
-    # Descobre dinamicamente qual foi o último arquivo que o crawler baixou
-    caminho_csv = encontrar_csv_mais_recente("./downloads")
+    # Processa os csvs
+    df_bruto = processar_todos_csvs("./downloads")
     
-    if caminho_csv is None:
-        print("[X] Erro: Nenhum arquivo de extrato encontrado na pasta './downloads'. Rode o crawler primeiro.")
+    if df_bruto is None:
+        print("[X] Erro: Nenhum CSV válido encontrado.")
     else:
         try:
-            # O pipeline agora usa o caminho descoberto em tempo de execução
-            df_bruto, saldo = processar_csv(caminho_csv)
+            # Categorização
             df_categorizado = aplicar_regras_categorizacao(df_bruto)
             carregar_dados_sqlite(df_categorizado)
             
         except Exception as e:
-            print(f"[X] Erro crítico no processamento do arquivo {caminho_csv}: {e}")
+            print(f"[X] Erro crítico na carga: {e}")
