@@ -8,7 +8,9 @@ def rodar_crawler(periodo_escolhido):
 
     # Extrai o número e calcula a data de início (DD/MM/YYYY)
     dias_para_subtrair = int(re.search(r'\d+', periodo_escolhido).group())
-    data_inicio = (datetime.now() - timedelta(days=dias_para_subtrair)).strftime("%d/%m/%Y")
+    hoje = datetime.now()
+    data_inicio_dt = hoje - timedelta(days=dias_para_subtrair)
+    data_inicio = data_inicio_dt.strftime("%d/%m/%Y")
 
     with sync_playwright() as p:
         print("[*] Iniciando o modo Widget (Apenas QR Code)...")
@@ -89,7 +91,7 @@ def rodar_crawler(periodo_escolhido):
             menu_conta.hover()
 
             # 1. Navegação via Menu Superior (Hover)
-            page.click("text='Extrato'")
+            page.locator("text='Extrato' >> visible=true").first.click()
 
             # 2. Abrindo o filtro de período
             print(f"[*] Configurando filtro para: {periodo_escolhido}...")
@@ -124,6 +126,12 @@ def rodar_crawler(periodo_escolhido):
             
             print(f"[+] Extrato da Conta salvo em: {caminho_conta}")
 
+            print("[*] Fechando modais residuais do download...")
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(1000)
+            page.keyboard.press("Escape") # Duplo ESC garante que fechou tudo
+            page.wait_for_timeout(1000)
+
             print("\n[*] [2/2] Navegando para a fatura de Cartões...")
             page.click("text='Cartões'")
             page.wait_for_timeout(3000)
@@ -133,26 +141,38 @@ def rodar_crawler(periodo_escolhido):
             page.wait_for_timeout(1000)
             
             print("[*] Acessando o Extrato de Cartões...")
-            page.click("text='Extrato'")
+            page.locator("text='Extrato' >> visible=true").first.click()
             page.wait_for_timeout(2000)
 
-            print(f"[*] Inserindo a data calculada: {data_inicio}...")
+            print(f"[*] Abrindo o calendário flutuante...")
             page.get_by_text("A partir de").click()
-            page.wait_for_timeout(500)
+            page.wait_for_timeout(1000)
             
-            page.keyboard.press("Control+A")
-            page.keyboard.press("Backspace")
-            page.keyboard.type(data_inicio)
+            # --- LÓGICA DO MÊS ANTERIOR ---
+            meses_para_voltar = (hoje.year - data_inicio_dt.year) * 12 + (hoje.month - data_inicio_dt.month)
+            
+            if meses_para_voltar > 0:
+                print(f"[*] Voltando {meses_para_voltar} mês(es) no calendário...")
+                for _ in range(meses_para_voltar):
+                    page.locator("div[data-testid='modal-content-wrapper'] button").first.click()
+                    page.wait_for_timeout(500)
+            
+            # --- LÓGICA DE CLICAR NO DIA ---
+            dia_calendario = str(data_inicio_dt.day)
+            print(f"[*] Clicando no dia {dia_calendario} dentro do calendário...")
+            page.locator(f'text="{dia_calendario}" >> visible=true').first.click()
             page.wait_for_timeout(1000)
             
             print("[*] Aplicando filtro de datas...")
-            page.click("text='Aplicar'")
+            page.click("text='Aplicar'", force=True)
+
+            print("[*] Aguardando a tabela de cartões carregar (5s)...")
             page.wait_for_timeout(3000)
 
             print("[*] Baixando arquivo do cartão...")
             with page.expect_download() as download_cartao_info:
-                page.click("text='Exportar'")
-                
+                page.locator("text='Exportar' >> visible=true").last.click(force=True)
+              
             caminho_cartao = f"./downloads/fatura_cartao_{nome_arquivo}.csv"
             download_cartao_info.value.save_as(caminho_cartao)
             print(f"[+] Fatura de Cartões salva em: {caminho_cartao}")
