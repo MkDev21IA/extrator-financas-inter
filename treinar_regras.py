@@ -24,6 +24,10 @@ def treinar_motor():
     print("-" * 65)
     
     for _, row in df_orfaos.iterrows():
+        cursor.execute("SELECT categoria FROM transacoes WHERE id_hash = ?", (row['id_hash'],))
+        status_atual = cursor.fetchone()[0]
+        if status_atual != 'Não Categorizado':
+            continue
         print(f"\n[{row['tipo_conta']}] Data: {row['data_transacao']} | Valor: R$ {row['valor']:.2f}")
         print(f"Desc: {row['descricao']}")
         
