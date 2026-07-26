@@ -1,8 +1,15 @@
 import os
+import re
+from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright
 
 def rodar_crawler(periodo_escolhido):
     os.makedirs("./downloads", exist_ok=True)
+
+    # Extrai o número e calcula a data de início (DD/MM/YYYY)
+    dias_para_subtrair = int(re.search(r'\d+', periodo_escolhido).group())
+    data_inicio = (datetime.now() - timedelta(days=dias_para_subtrair)).strftime("%d/%m/%Y")
+
     with sync_playwright() as p:
         print("[*] Iniciando o modo Widget (Apenas QR Code)...")
         
@@ -112,10 +119,43 @@ def rodar_crawler(periodo_escolhido):
 
             # Define o caminho onde o arquivo bruto será salvo localmente
             nome_arquivo = periodo_escolhido.replace(' ', '')
-            caminho_salvar = f"./downloads/extrato_{nome_arquivo}.csv"
-            download.save_as(caminho_salvar)
+            caminho_conta = f"./downloads/extrato_conta_{nome_arquivo}.csv"
+            download.save_as(caminho_conta)
             
-            print(f"[+] Sucesso absoluto! Extrato salvo em: {caminho_salvar}")
+            print(f"[+] Extrato da Conta salvo em: {caminho_conta}")
+
+            print("\n[*] [2/2] Navegando para a fatura de Cartões...")
+            page.click("text='Cartões'")
+            page.wait_for_timeout(3000)
+            
+            print("[*] Abrindo menu 'Ver mais'...")
+            page.click("text='Ver mais'")
+            page.wait_for_timeout(1000)
+            
+            print("[*] Acessando o Extrato de Cartões...")
+            page.click("text='Extrato'")
+            page.wait_for_timeout(2000)
+
+            print(f"[*] Inserindo a data calculada: {data_inicio}...")
+            page.get_by_text("A partir de").click()
+            page.wait_for_timeout(500)
+            
+            page.keyboard.press("Control+A")
+            page.keyboard.press("Backspace")
+            page.keyboard.type(data_inicio)
+            page.wait_for_timeout(1000)
+            
+            print("[*] Aplicando filtro de datas...")
+            page.click("text='Aplicar'")
+            page.wait_for_timeout(3000)
+
+            print("[*] Baixando arquivo do cartão...")
+            with page.expect_download() as download_cartao_info:
+                page.click("text='Exportar'")
+                
+            caminho_cartao = f"./downloads/fatura_cartao_{nome_arquivo}.csv"
+            download_cartao_info.value.save_as(caminho_cartao)
+            print(f"[+] Fatura de Cartões salva em: {caminho_cartao}")
         
         except Exception as e:
             print(f"\n[X] Falha crítica durante a automação do navegador: {e}")
