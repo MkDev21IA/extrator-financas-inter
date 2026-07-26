@@ -8,7 +8,9 @@ Nenhuma empresa terceirizada precisa ter acesso ao seu extrato bancário. Este p
 
 1. **Camada de Extração (Playwright):** Um robô com navegação isolada acessa o Internet Banking de forma segura, contornando a ausência de APIs abertas e exibindo uma interface de status enquanto extrai o CSV em background.
 2. **Camada ETL (Pandas):** Limpeza dos dados brutos do banco, normalização de datas e geração de Hashes MD5 para garantir que transações não sejam duplicadas no banco de dados (Idempotência).
-3. **Motor de Regras Relacional (SQLite):** Um sistema interativo via terminal (CLI) que aprende com suas transações para categorizar automaticamente gastos, aportes e proventos futuros.
+3. **Motor de Regras Relacional (SQLite) & Parcelamento:** 
+* Sistema interativo via terminal (CLI) para categorização automática.
+* Módulo isolado (manage_portions.py com suporte a loop) para desmembrar compras parceladas avulsas no banco.
 4. **Camada Analítica (Metabase via Docker):** Painel de BI plugado no banco de dados local para geração de insights orçamentários avançados.
 
 ## 🚀 Como usar
@@ -44,7 +46,15 @@ python main.py
 ```
 *(Dica: Se estiver utilizando o Windows com WSL, você pode criar um arquivo `.bat` apontando para o script de inicialização local para automatizar a chamada — Tem exemplos na pasta exemplos_execucao).*
 
-### 3. Visualização (Metabase)
+### 3. Gerenciamento de Parcelamentos Manuais
+Caso precise desmembrar uma compra parcelada:
+
+1. Pegue o `id_hash` da transação no Metabase.
+2. Execute o atalho correspondente: `parcelar.bat` (Windows) ou `./parcelar.sh` (Linux/macOS).
+3. Cole o hash e informe o número de parcelas (o script aceita múltiplos hashes em sequência).
+
+
+### 4. Visualização (Metabase)
 Com o banco de dados (`meu_dinheiro.db`) alimentado pelo script, suba o container do Metabase mapeando a pasta atual do seu projeto:
 
 ```bash
