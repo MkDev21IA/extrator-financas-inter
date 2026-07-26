@@ -7,7 +7,7 @@ def treinar_motor():
     
     # Agora buscamos o id_hash para poder fazer classificações cirúrgicas
     query = """
-    SELECT id_hash, data_transacao, descricao, valor 
+    SELECT id_hash, data_transacao, descricao, valor, tipo_conta 
     FROM transacoes 
     WHERE categoria = 'Não Categorizado'
     ORDER BY data_transacao DESC
@@ -24,7 +24,7 @@ def treinar_motor():
     print("-" * 65)
     
     for _, row in df_orfaos.iterrows():
-        print(f"\nData: {row['data_transacao']} | Valor: R$ {row['valor']:.2f}")
+        print(f"\n[{row['tipo_conta']}] Data: {row['data_transacao']} | Valor: R$ {row['valor']:.2f}")
         print(f"Desc: {row['descricao']}")
         
         acao = input("Escolha [R/M/I/P] ou [S] para Sair: ").strip().upper()
